@@ -46,7 +46,6 @@ import org.opensaml.xml.signature.SignatureValidator;
 import org.opensaml.xml.signature.Signature;
 import org.opensaml.xml.encryption.InlineEncryptedKeyResolver;
 import org.opensaml.xml.encryption.DecryptionException;
-import org.opensaml.xml.security.credential.BasicCredential;
 import org.opensaml.xml.security.keyinfo.StaticKeyInfoCredentialResolver;
 import org.opensaml.xml.validation.ValidationException;
 import org.opensaml.xml.XMLObjectBuilderFactory;
@@ -207,13 +206,16 @@ public class SAMLClient
         return assertions;
     }
 
-    private void validate(Response response)
+    private void validate(Response response, boolean skipSignatureValidation, boolean onlySignatureValidation)
         throws ValidationException
     {
         // response signature must match IdP's key, if present
-        Signature sig = response.getSignature();
+        Signature sig = skipSignatureValidation ? null : response.getSignature();
         if (sig != null)
             sigValidator.validate(sig);
+
+        if (onlySignatureValidation)
+            return;
 
         // response must be successful
         if (response.getStatus() == null ||
@@ -225,7 +227,7 @@ public class SAMLClient
         }
 
         // response destination must match ACS
-        if (!spConfig.getAcs().equals(response.getDestination()))
+        if (response.getDestination() != null && !response.getDestination().isEmpty() && !spConfig.getAcs().equals(response.getDestination()))
             throw new ValidationException(
                 "Response is destined for a different endpoint");
 
@@ -471,6 +473,23 @@ public class SAMLClient
     public AttributeSet validateResponse(String authnResponse)
         throws SAMLException
     {
+        return validateResponse(authnResponse, false, false);
+    }
+
+    /**
+     * Check an authnResponse and return the subject if validation
+     * succeeds.  The NameID from the subject in the first valid
+     * assertion is returned along with the attributes.
+     *
+     * @param authnResponse a base64-encoded AuthnResponse from the SP
+     * @param onlySignatureValidation to only do signature validation
+     * @param skipSignatureValidation allows one to skip signature validation
+     * @throws SAMLException if validation failed.
+     * @return the authenticated subject/attributes as an AttributeSet
+     */
+    public AttributeSet validateResponse(String authnResponse, boolean skipSignatureValidation, boolean onlySignatureValidation)
+        throws SAMLException
+    {
         byte[] decoded = DatatypeConverter.parseBase64Binary(authnResponse);
         try {
             authnResponse = new String(decoded, "UTF-8");
@@ -481,7 +500,9 @@ public class SAMLClient
         Response response = parseResponse(authnResponse);
 
         try {
-            validate(response);
+            validate(response, skipSignatureValidation, onlySignatureValidation);
+            if (onlySignatureValidation)
+                return null;
         } catch (ValidationException e) {
             throw new SAMLException(e);
         }
