@@ -113,15 +113,17 @@ public class SAMLClient
         this.spConfig = spConfig;
         this.idpConfig = idpConfig;
 
-        BasicCredential cred = new BasicCredential();
-        cred.setEntityId(idpConfig.getEntityId());
-        cred.setPublicKey(idpConfig.getCert().getPublicKey());
+        if (this.idpConfig != null) {
+            BasicCredential cred = new BasicCredential();
+            cred.setEntityId(idpConfig.getEntityId());
+            cred.setPublicKey(idpConfig.getCert().getPublicKey());
 
-        sigValidator = new SignatureValidator(cred);
+            sigValidator = new SignatureValidator(cred);
 
-        // create xml parsers
-        parsers = new BasicParserPool();
-        parsers.setNamespaceAware(true);
+            // create xml parsers
+            parsers = new BasicParserPool();
+            parsers.setNamespaceAware(true);
+        }
     }
 
     /**
